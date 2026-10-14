@@ -1,0 +1,2169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Osmo Mobile 2 Remote</title>
+  <meta name="description" content="Controle remoto pelo navegador (Web Bluetooth) para o gimbal DJI Osmo Mobile 2.">
+  <meta name="theme-color" content="#0b1120">
+
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #ffffff;
+      --text-muted: #cbd5e1;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px 16px 50px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 14px 20px;
+      border-radius: 14px;
+    }
+
+    h1 { margin: 0; font-size: 1.25rem; font-weight: 700; color: #ffffff; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+    .dot.connected { background: var(--success); box-shadow: 0 0 10px var(--success); }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      margin: 0 0 14px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .connection-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    input, select {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: #ffffff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+
+    .name-input { flex: 1; min-width: 160px; }
+
+    button {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 11px 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      user-select: none;
+      transition: 0.1s;
+    }
+
+    button:hover:where(:not(:disabled)) { background: var(--primary-hover); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    button.success { background: var(--success); color: #ffffff; }
+    button.danger { background: var(--danger); color: #ffffff; }
+    button.secondary { background: #334155; color: #ffffff; }
+    button.secondary:hover:not(:disabled) { background: #475569; }
+    button:focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* =========================================================
+       Controle remoto retrô (D-pad + travas de eixo)
+       ========================================================= */
+    .controller-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 20px;
+      align-items: center;
+    }
+
+    .dpad-container { display: flex; justify-content: center; min-width: 0; }
+
+    .remote-body {
+      position: relative;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px 14px;
+      border-radius: 30px;
+      background:
+        radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.07), transparent 60%),
+        repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0 2px, transparent 2px 5px),
+        linear-gradient(180deg, #252d3d 0%, #161c28 55%, #0f131c 100%);
+      border: 1px solid #070a10;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.10),
+        inset 0 -3px 0 rgba(0, 0, 0, 0.55),
+        0 18px 32px -12px rgba(0, 0, 0, 0.85);
+      transition: filter 0.3s;
+    }
+    .remote-body.offline { filter: saturate(0.55) brightness(0.9); }
+
+    .remote-top {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 0 4px;
+    }
+
+    .remote-brand {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      color: #9aa5b8;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+    }
+    .remote-brand small {
+      display: block;
+      font-size: 0.55rem;
+      letter-spacing: 0.18em;
+      color: #5b6577;
+      font-weight: 500;
+    }
+
+    .led-cluster { display: flex; gap: 12px; }
+
+    .led {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      color: #6b7686;
+    }
+    .led i {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #2a1616;
+      border: 1px solid #000;
+      box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.8);
+      transition: background 0.08s, box-shadow 0.08s;
+    }
+    .led.pwr.on i  { background: #22c55e; box-shadow: 0 0 8px #22c55e, 0 0 2px #bbf7d0; }
+    .led.tx.on i   { background: #f59e0b; box-shadow: 0 0 8px #f59e0b, 0 0 2px #fde68a; }
+    .led.look.on i { background: #60a5fa; box-shadow: 0 0 8px #60a5fa, 0 0 2px #dbeafe; }
+    .led.btn.on i  { background: #ef4444; box-shadow: 0 0 8px #ef4444, 0 0 2px #fecaca; }
+
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 80px);
+      grid-template-rows: repeat(3, 80px);
+      gap: 10px;
+      padding: 12px;
+      border-radius: 22px;
+      background: #0b0e15;
+      box-shadow:
+        inset 0 2px 6px rgba(0, 0, 0, 0.9),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .dpad button {
+      position: relative;
+      padding: 0;
+      font-size: 1.75rem;
+      font-weight: 900;
+      line-height: 1;
+      color: #e5e7eb;
+      background: linear-gradient(180deg, #4b5567 0%, #343c4d 100%);
+      border: 2px solid #11151d;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.25),
+        0 6px 0 #0a0d13,
+        0 9px 14px rgba(0, 0, 0, 0.6);
+      transform: translateY(0);
+      transition: transform 70ms ease-out, box-shadow 70ms ease-out, background 70ms, color 70ms;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      cursor: pointer;
+    }
+    .dpad button:hover { background: linear-gradient(180deg, #55607a 0%, #3b4457 100%); }
+
+    /* Estado APERTADO (mouse, toque, tecla ou foco+Espaço): afunda no poço e acende */
+    .dpad button:active,
+    .dpad button.is-pressed {
+      transform: translateY(5px);
+      background: linear-gradient(180deg, #2f6fdd 0%, #1d4fb3 100%);
+      border-color: #0a1a3a;
+      color: #ffffff;
+      box-shadow:
+        inset 0 3px 6px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(0, 0, 0, 0.35),
+        0 1px 0 #0a0d13,
+        0 0 14px rgba(96, 165, 250, 0.45);
+    }
+
+    /* Botão central: CENTRO (centraliza) — vira PARAR vermelho enquanto o sweep roda */
+    .dpad button.center-btn {
+      border-radius: 50%;
+      gap: 3px;
+      color: #e2e8f0;
+      border-color: #0b0f17;
+      background: radial-gradient(circle at 40% 30%, #6b7a93 0%, #3a465d 55%, #252d3d 100%);
+    }
+    .dpad button.center-btn:hover { background: radial-gradient(circle at 40% 30%, #7b8aa5 0%, #44516b 55%, #2b3446 100%); }
+    .dpad button.center-btn .center-icon { font-size: 1.55rem; line-height: 1; }
+    .dpad button.center-btn .center-text {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: #cbd5e1;
+    }
+    .dpad button.center-btn:active,
+    .dpad button.center-btn.is-pressed {
+      background: radial-gradient(circle at 40% 30%, #93c5fd 0%, #2f6fdd 55%, #1d4fb3 100%);
+      border-color: #0a1a3a;
+    }
+    .dpad button.center-btn.is-pressed .center-text,
+    .dpad button.center-btn:active .center-text { color: #eff6ff; }
+
+    .dpad button.center-btn.stop-mode {
+      background: radial-gradient(circle at 40% 30%, #f87171 0%, #b91c1c 55%, #7f1d1d 100%);
+      border-color: #2a0707;
+      animation: stopPulse 1.3s ease-in-out infinite;
+    }
+    .dpad button.center-btn.stop-mode .center-text { color: #fee2e2; }
+    .dpad button.center-btn.stop-mode:hover { background: radial-gradient(circle at 40% 30%, #fca5a5 0%, #dc2626 55%, #991b1b 100%); }
+    .dpad button.center-btn.stop-mode:active,
+    .dpad button.center-btn.stop-mode.is-pressed { background: radial-gradient(circle at 40% 30%, #fecaca 0%, #ef4444 55%, #b91c1c 100%); animation: none; }
+    @keyframes stopPulse {
+      0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 6px 0 #0a0d13, 0 0 0 0 rgba(239, 68, 68, 0.55); }
+      50%      { box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 6px 0 #0a0d13, 0 0 0 9px rgba(239, 68, 68, 0); }
+    }
+
+    .dpad button.axis-locked {
+      color: #8b93a3;
+      background:
+        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.18) 0 6px, transparent 6px 12px),
+        linear-gradient(180deg, #3a4150 0%, #2a303d 100%);
+    }
+    .dpad button .lock-badge {
+      position: absolute;
+      top: 5px;
+      right: 7px;
+      font-size: 0.8rem;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .dpad button.axis-locked .lock-badge { opacity: 1; }
+    .dpad button.axis-locked:active,
+    .dpad button.axis-locked.is-pressed {
+      color: #8b93a3;
+      background:
+        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.18) 0 6px, transparent 6px 12px),
+        linear-gradient(180deg, #2a303d 0%, #1f2430 100%);
+      box-shadow:
+        inset 0 3px 6px rgba(0, 0, 0, 0.6),
+        0 1px 0 #0a0d13;
+    }
+
+    /* Chaves deslizantes (travas, inversões, mouse-look) */
+    .lock-row {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    button.switch {
+      min-width: 0;
+      background: linear-gradient(180deg, #1b2130 0%, #12171f 100%);
+      border: 1px solid #070a10;
+      border-radius: 12px;
+      padding: 7px 9px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #cbd5e1;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 #0a0d13;
+      transition: background 0.15s, color 0.15s;
+    }
+    button.switch:hover:not(:disabled) { background: linear-gradient(180deg, #222a3b 0%, #171d28 100%); }
+    .switch small { font-weight: 500; color: #7c8798; margin-left: 5px; }
+
+    .switch-track {
+      flex: none;
+      width: 38px;
+      height: 20px;
+      border-radius: 999px;
+      background: #0a0d13;
+      border: 1px solid #000;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9);
+      position: relative;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .switch-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #a3adc0 0%, #6b7686 100%);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+      transition: transform 0.15s ease-out, background 0.15s;
+    }
+    .switch-text {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      line-height: 1.1;
+      text-align: left;
+    }
+    .switch-state { color: #10b981; font-size: 0.58rem; letter-spacing: 0.12em; }
+
+    button.switch.on { color: #fde68a; }
+    .switch.on .switch-track {
+      background: #7c2d12;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(245, 158, 11, 0.35);
+    }
+    .switch.on .switch-knob {
+      transform: translateX(18px);
+      background: linear-gradient(180deg, #fde68a 0%, #f59e0b 100%);
+    }
+    .switch.on .switch-state { color: #f59e0b; }
+    /* variante azul (funções, não travas) */
+    button.switch.blue.on { color: #bfdbfe; }
+    .switch.blue.on .switch-track { background: #1e3a8a; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(96, 165, 250, 0.35); }
+    .switch.blue.on .switch-knob { background: linear-gradient(180deg, #dbeafe 0%, #60a5fa 100%); }
+    .switch.blue.on .switch-state { color: #60a5fa; }
+
+    .remote-grip {
+      width: 56%;
+      height: 14px;
+      border-radius: 4px;
+      background: repeating-linear-gradient(180deg, #05070b 0 2px, transparent 2px 5px);
+      opacity: 0.8;
+    }
+
+    .quick-actions { display: flex; flex-direction: column; gap: 12px; }
+
+    .slider-group {
+      background: #0f172a;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .slider-group.compact { padding: 8px 12px; gap: 2px; }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .slider-group.compact .slider-header { font-size: 0.78rem; }
+    .slider-header small { font-weight: 500; color: #94a3b8; }
+    .slider-header .val { font-family: "JetBrains Mono", monospace; font-weight: 500; color: #e2e8f0; white-space: nowrap; }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--primary);
+      cursor: pointer;
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .preset-grid button { font-size: 0.85rem; padding: 11px; }
+
+    .hint {
+      margin: 0;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+    .hint kbd {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 1px 5px;
+      margin: 0 1px;
+      color: #e2e8f0;
+    }
+
+    /* =========================================================
+       Joystick virtual / mouse-look
+       ========================================================= */
+    .stick-layout {
+      display: grid;
+      grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .stick-pad {
+      position: relative;
+      width: 208px;
+      height: 208px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 42%, #171d2a 0%, #0b0e15 72%);
+      box-shadow:
+        inset 0 3px 8px rgba(0, 0, 0, 0.9),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+        0 0 0 6px #0f131c,
+        0 0 0 7px #2a3242;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: grab;
+      outline: none;
+      --dz: 10%;
+    }
+    .stick-pad:focus-visible { box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9), 0 0 0 6px #0f131c, 0 0 0 9px #fbbf24; }
+    .stick-pad.dragging { cursor: grabbing; }
+    .stick-pad.looking { cursor: none; }
+
+    .stick-ring {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(var(--dz) * 2);
+      height: calc(var(--dz) * 2);
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px dashed rgba(148, 163, 184, 0.35);
+      pointer-events: none;
+    }
+    .stick-ring.outer {
+      width: calc(100% - 52px);
+      height: calc(100% - 52px);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+    .stick-cross::before, .stick-cross::after {
+      content: "";
+      position: absolute;
+      background: rgba(148, 163, 184, 0.14);
+      pointer-events: none;
+    }
+    .stick-cross::before { left: 50%; top: 14px; bottom: 14px; width: 1px; }
+    .stick-cross::after  { top: 50%; left: 14px; right: 14px; height: 1px; }
+
+    .stick-knob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 52px;
+      height: 52px;
+      margin: -26px 0 0 -26px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #6b7686 0%, #2b323f 60%, #161b25 100%);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+      transition: transform 80ms linear;
+      pointer-events: none;
+    }
+    .stick-pad.dragging .stick-knob,
+    .stick-pad.looking .stick-knob {
+      background: radial-gradient(circle at 35% 30%, #93c5fd 0%, #2f6fdd 60%, #1d4fb3 100%);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7), 0 0 18px rgba(96, 165, 250, 0.5);
+    }
+
+    .stick-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding-bottom: 18px;
+      pointer-events: none;
+      text-align: center;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      color: #fde68a;
+      text-shadow: 0 1px 2px #000;
+    }
+    .stick-overlay[hidden] { display: none; }
+    .stick-overlay small { font-size: 0.55rem; color: #cbd5e1; letter-spacing: 0.1em; }
+
+    .stick-readout {
+      display: flex;
+      gap: 18px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.66rem;
+      letter-spacing: 0.1em;
+      color: #7c8798;
+    }
+    .stick-readout b { color: #e2e8f0; display: inline-block; min-width: 4.2em; text-align: right; font-weight: 500; }
+    .stick-readout b.live { color: #60a5fa; }
+
+    .settings { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .switch-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .chk input[type=checkbox] { accent-color: var(--primary); width: 15px; height: 15px; padding: 0; margin: 0; }
+
+    .log {
+      font-family: "JetBrains Mono", monospace;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px;
+      color: #94a3b8;
+      height: 150px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .log-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .log-card { padding: 14px 18px; }
+    .log-title { margin: 0; }
+    .log-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button.small-btn { padding: 4px 10px; font-size: 0.75rem; }
+    .log-header .chk { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #cbd5e1; }
+
+
+    /* =========================================================
+       v3 — visor LCD, abas, knobs, estabilização simples, botões do gimbal
+       ========================================================= */
+    [hidden] { display: none !important; }
+
+    .lcd {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 7px 11px;
+      border-radius: 9px;
+      border: 1px solid #000;
+      background:
+        repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px),
+        linear-gradient(180deg, #0b1d12 0%, #06120b 100%);
+      box-shadow: inset 0 2px 7px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.05);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.64rem;
+      letter-spacing: 0.06em;
+      line-height: 1.45;
+      color: #6ee7a0;
+      text-shadow: 0 0 6px rgba(110, 231, 160, 0.45);
+    }
+    .lcd-row { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; min-width: 0; }
+    .lcd-row span { overflow: hidden; text-overflow: ellipsis; }
+    .lcd-row.big { font-size: 0.82rem; font-weight: 700; color: #b9f8d3; }
+    .lcd .amber { color: #fcd34d; text-shadow: 0 0 6px rgba(252, 211, 77, 0.45); }
+    .remote-body.offline .lcd { color: #3d7355; text-shadow: none; }
+    .remote-body.offline .lcd-row.big { color: #4f8f6a; }
+
+    .shortcuts {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+    }
+    .shortcuts summary { cursor: pointer; font-weight: 700; color: #e2e8f0; }
+    .shortcuts ul { margin: 8px 0 2px; padding-left: 18px; line-height: 1.9; }
+    .shortcuts kbd {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 1px 5px;
+      color: #e2e8f0;
+    }
+
+    /* Segmentado (abas e escolhas) */
+    .seg {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 12px;
+      background: #0b0e15;
+      border: 1px solid #070a10;
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8);
+      max-width: 100%;
+    }
+    .seg-btn {
+      background: transparent;
+      color: #94a3b8;
+      padding: 8px 14px;
+      border-radius: 9px;
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+    .seg-btn:hover:not(:disabled) { background: #172035; color: #e2e8f0; }
+    .seg-btn.active, .seg-btn.active:hover:not(:disabled) {
+      background: linear-gradient(180deg, #2f6fdd 0%, #1d4fb3 100%);
+      color: #ffffff;
+      box-shadow: 0 2px 0 #0a1a3a, 0 0 12px rgba(96, 165, 250, 0.3);
+    }
+    .seg.dim .seg-btn.active { background: #334155; color: #cbd5e1; box-shadow: none; }
+    .seg-btn em { font-style: normal; font-family: "JetBrains Mono", monospace; font-size: 0.58rem; color: #fbbf24; margin-left: 2px; }
+    .seg.small .seg-btn { padding: 6px 11px; font-size: 0.8rem; }
+
+    .view-help { margin: 12px 0 16px; font-size: 0.88rem; color: #cbd5e1; line-height: 1.5; min-height: 2.9em; }
+
+    /* Mouse livre */
+    .look-pad {
+      position: relative;
+      width: 208px;
+      height: 208px;
+      border-radius: 26px;
+      background: radial-gradient(circle at 50% 42%, #171d2a 0%, #0b0e15 72%);
+      box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9), 0 0 0 6px #0f131c, 0 0 0 7px #2a3242;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      text-align: center;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.66rem;
+      letter-spacing: 0.12em;
+      color: #cbd5e1;
+      cursor: pointer;
+      outline: none;
+      user-select: none;
+    }
+    .look-pad:focus-visible { box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9), 0 0 0 6px #0f131c, 0 0 0 9px #fbbf24; }
+    .look-pad.looking { cursor: none; box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.9), 0 0 0 6px #0f131c, 0 0 0 8px #3b82f6; }
+    .look-pad small { font-size: 0.58rem; color: #7c8798; letter-spacing: 0.08em; }
+    .look-icon { font-size: 2rem; line-height: 1; }
+    .look-dot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      margin: -7px 0 0 -7px;
+      border-radius: 50%;
+      background: #60a5fa;
+      box-shadow: 0 0 12px #60a5fa;
+      opacity: 0;
+      transition: transform 80ms linear;
+      pointer-events: none;
+    }
+    .look-pad.looking .look-dot { opacity: 1; }
+    .look-pad.looking .look-icon, .look-pad.looking .look-text { opacity: 0.25; }
+
+    .feel { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .feel-label { font-size: 0.85rem; font-weight: 700; }
+    .slider-help { font-size: 0.72rem; color: #94a3b8; line-height: 1.35; margin: 1px 0 3px; }
+
+    /* Estabilização simples */
+    .stab-stack { display: flex; flex-direction: column; gap: 12px; }
+    .offline-note {
+      font-size: 0.82rem;
+      color: #fcd34d;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 10px;
+      padding: 8px 12px;
+    }
+    .big-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .bt-title { font-weight: 700; font-size: 0.98rem; }
+    .bt-desc { font-size: 0.8rem; color: #94a3b8; line-height: 1.5; margin-top: 4px; }
+    .bt-extra { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    button.switch.big { flex: none; padding: 9px 12px; gap: 10px; }
+    button.switch.big .switch-track { width: 50px; height: 26px; }
+    button.switch.big .switch-knob { width: 20px; height: 20px; }
+    .switch.big.on .switch-knob { transform: translateX(24px); }
+    .switch.big .switch-state { font-size: 0.66rem; }
+    button.switch.green.on { color: #bbf7d0; }
+    .switch.green.on .switch-track { background: #065f46; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 8px rgba(16, 185, 129, 0.35); }
+    .switch.green.on .switch-knob { background: linear-gradient(180deg, #d1fae5 0%, #34d399 100%); }
+    .switch.green.on .switch-state { color: #34d399; }
+    .switch.green:not(.on) .switch-state { color: #fbbf24; }
+
+    .field-label { font-size: 0.8rem; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; }
+    .field-help { font-size: 0.78rem; color: #94a3b8; margin: 6px 0 0; line-height: 1.45; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.76rem;
+      color: #cbd5e1;
+      background: #0b1120;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      padding: 4px 11px;
+    }
+    .chip i { width: 8px; height: 8px; border-radius: 50%; background: #64748b; flex: none; }
+    .chip.ok i { background: #10b981; box-shadow: 0 0 6px #10b981; }
+    .chip.warn i { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+
+
+    @media (max-width: 650px) {
+      .controller-layout, .stick-layout { grid-template-columns: minmax(0, 1fr); }
+      .seg { display: flex; }
+      .seg-btn { flex: 1 1 auto; }
+      .stick-layout > .dpad-container { justify-content: center; }
+    }
+
+    @media (max-width: 420px) {
+      .dpad { grid-template-columns: repeat(3, 68px); grid-template-rows: repeat(3, 68px); gap: 8px; }
+      .dpad button { font-size: 1.45rem; }
+      .stick-pad, .look-pad { width: 184px; height: 184px; }
+      .big-toggle { flex-direction: column; align-items: stretch; }
+      button.switch.big { align-self: flex-start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .dpad button, .switch-knob, .switch-track, .led i, .remote-body, .stick-knob, .look-dot { transition: none; }
+      .dpad button.center-btn.stop-mode { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>DJI Osmo Mobile 2</h1>
+      <div class="status-badge">
+        <span id="statusDot" class="dot"></span>
+        <span id="statusText">Desconectado</span>
+      </div>
+    </header>
+
+    <!-- Conexão -->
+    <section class="card">
+      <div class="connection-row">
+        <input id="nameFilter" class="name-input" type="text" placeholder="Filtro (ex: Osmo, OM)" aria-label="Filtro pelo nome do dispositivo Bluetooth">
+        <button id="connectBtn" class="success" type="button">Conectar Gimbal</button>
+        <button id="otherDeviceBtn" class="secondary" type="button" hidden>Outro aparelho</button>
+        <button id="disconnectBtn" class="danger" type="button" disabled>Desconectar</button>
+      </div>
+    </section>
+
+    <!-- ============ TELA 1: Controle direcional ============ -->
+    <section class="card" aria-labelledby="manualTitle">
+      <div class="card-title" id="manualTitle">Controle Direcional</div>
+      <div class="controller-layout">
+
+        <div class="dpad-container">
+          <div id="remoteBody" class="remote-body offline">
+            <div class="remote-top">
+              <span class="remote-brand">OSMO PAD<small>OM-2 · BLE</small></span>
+              <div class="led-cluster" aria-hidden="true">
+                <span id="pwrLed" class="led pwr"><i></i>PWR</span>
+                <span id="txLed" class="led tx"><i></i>TX</span>
+                <span id="btnLed" class="led btn" title="Pisca quando alguém aperta um botão ou mexe no joystick do próprio gimbal"><i></i>BTN</span>
+              </div>
+            </div>
+
+            <!-- Visor: modo do gimbal, última ação e ângulos reais enviados pelo gimbal -->
+            <div class="lcd" aria-hidden="true">
+              <div class="lcd-row"><span id="lcdMode">SEM CONEXÃO</span><span id="lcdLocks" class="amber"></span></div>
+              <div class="lcd-row big"><span id="lcdAction">DESCONECTADO</span></div>
+              <div class="lcd-row"><span id="lcdAtt">TILT --.-°   PAN --.-°</span></div>
+            </div>
+
+            <div class="dpad" role="group" aria-label="Direcional do gimbal">
+              <div></div>
+              <button id="btnUp" type="button" aria-label="Inclinar para cima (tilt)" aria-keyshortcuts="W ArrowUp">▲<span class="lock-badge" aria-hidden="true">🔒</span></button>
+              <div></div>
+
+              <button id="btnLeft" type="button" aria-label="Girar para a esquerda (pan)" aria-keyshortcuts="A ArrowLeft">◀<span class="lock-badge" aria-hidden="true">🔒</span></button>
+              <button id="btnCenter" type="button" class="center-btn" aria-label="Centralizar o gimbal" aria-keyshortcuts="Escape C">
+                <span id="centerIcon" class="center-icon" aria-hidden="true">⌖</span><span id="centerText" class="center-text" aria-hidden="true">CENTRO</span>
+              </button>
+              <button id="btnRight" type="button" aria-label="Girar para a direita (pan)" aria-keyshortcuts="D ArrowRight">▶<span class="lock-badge" aria-hidden="true">🔒</span></button>
+
+              <div></div>
+              <button id="btnDown" type="button" aria-label="Inclinar para baixo (tilt)" aria-keyshortcuts="S ArrowDown">▼<span class="lock-badge" aria-hidden="true">🔒</span></button>
+              <div></div>
+            </div>
+
+            <!-- Bloqueios de eixo (valem para todos os controles desta página) -->
+            <div class="lock-row" role="group" aria-label="Bloqueio de eixos">
+              <button id="lockPan" type="button" class="switch" role="switch" aria-checked="false" aria-keyshortcuts="P"
+                      aria-label="Bloquear o pan (giro para os lados)" title="Bloquear o giro para os lados (P)">
+                <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                <span class="switch-text" aria-hidden="true"><span>PAN</span><span class="switch-state">LIVRE</span></span>
+              </button>
+              <button id="lockTilt" type="button" class="switch" role="switch" aria-checked="false" aria-keyshortcuts="T"
+                      aria-label="Bloquear o tilt (inclinação para cima e para baixo)" title="Bloquear a inclinação (T)">
+                <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+                <span class="switch-text" aria-hidden="true"><span>TILT</span><span class="switch-state">LIVRE</span></span>
+              </button>
+            </div>
+
+            <div class="remote-grip" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="quick-actions">
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="speedSlider">Velocidade das setas</label>
+              <span id="speedVal" class="val" aria-hidden="true">45°/s</span>
+            </div>
+            <input id="speedSlider" type="range" min="10" max="120" value="45" step="5" aria-valuetext="45 graus por segundo">
+          </div>
+
+          <div class="preset-grid">
+            <button id="presetLeft45" class="secondary" type="button" disabled>↺ 45° Esq</button>
+            <button id="presetRight45" class="secondary" type="button" disabled>↻ 45° Dir</button>
+            <button id="quickFollowBtn" class="secondary" type="button" disabled>📌 Fixar posição</button>
+            <button id="sweepBtn" class="secondary" type="button" disabled>⇄ Sweep</button>
+          </div>
+
+          <details class="shortcuts">
+            <summary>⌨ Atalhos de teclado</summary>
+            <ul>
+              <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas — mover</li>
+              <li><kbd>Esc</kbd> ou <kbd>C</kbd> — parar e centralizar</li>
+              <li><kbd>P</kbd> bloquear pan · <kbd>T</kbd> bloquear tilt</li>
+              <li><kbd>M</kbd> seguir a mão ⇄ fixar posição</li>
+              <li><kbd>L</kbd> mouse livre · <kbd>+</kbd> <kbd>−</kbd> velocidade</li>
+            </ul>
+          </details>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ TELA 2: Controle por mouse ============ -->
+    <section class="card" aria-labelledby="mouseTitle">
+      <div class="card-title" id="mouseTitle">Controle por Mouse</div>
+
+      <div class="seg" role="tablist" aria-label="Tipo de controle por mouse">
+        <button id="tabStick" class="seg-btn active" type="button" role="tab" aria-selected="true" aria-controls="viewStick" data-view="stick">🕹 Joystick</button>
+        <button id="tabLook" class="seg-btn" type="button" role="tab" aria-selected="false" aria-controls="viewLook" data-view="look">🖱 Mouse livre</button>
+      </div>
+      <p id="viewHelp" class="view-help" aria-live="polite"></p>
+
+      <div class="stick-layout">
+        <div class="dpad-container">
+          <div id="stickBody" class="remote-body offline">
+            <div class="remote-top">
+              <span id="stickBrand" class="remote-brand">OSMO STICK<small>JOYSTICK</small></span>
+              <div class="led-cluster" aria-hidden="true">
+                <span id="activeLed" class="led look"><i></i>ATIVO</span>
+              </div>
+            </div>
+
+            <!-- Joystick -->
+            <div id="viewStick" role="tabpanel" aria-labelledby="tabStick">
+              <div id="stickPad" class="stick-pad" tabindex="0" role="application"
+                   aria-label="Joystick: arraste a partir do centro; quanto mais longe, mais rápido">
+                <div class="stick-ring outer" aria-hidden="true"></div>
+                <div id="dzRing" class="stick-ring" aria-hidden="true"></div>
+                <div class="stick-cross" aria-hidden="true"></div>
+                <div id="stickKnob" class="stick-knob" aria-hidden="true"></div>
+              </div>
+            </div>
+
+            <!-- Mouse livre -->
+            <div id="viewLook" role="tabpanel" aria-labelledby="tabLook" hidden>
+              <div id="lookPad" class="look-pad" tabindex="0" role="button" aria-label="Clique para capturar o mouse e girar o gimbal movendo o mouse; Esc para soltar">
+                <div class="look-icon" aria-hidden="true">🖱</div>
+                <div id="lookText" class="look-text" aria-hidden="true">CLIQUE AQUI<br><small>para capturar o mouse</small></div>
+                <div id="lookDot" class="look-dot" aria-hidden="true"></div>
+              </div>
+            </div>
+
+            <div class="stick-readout" aria-hidden="true">
+              <span>PAN <b id="rateYaw">0.0</b>°/s</span>
+              <span>TILT <b id="ratePitch">0.0</b>°/s</span>
+            </div>
+            <div class="remote-grip" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="settings">
+          <div class="feel">
+            <span class="feel-label" id="feelLabel">Sensação</span>
+            <div class="seg small" role="group" aria-labelledby="feelLabel">
+              <button class="seg-btn" type="button" data-feel="suave" aria-pressed="false">Suave</button>
+              <button class="seg-btn active" type="button" data-feel="normal" aria-pressed="true">Normal</button>
+              <button class="seg-btn" type="button" data-feel="agil" aria-pressed="false">Ágil</button>
+            </div>
+          </div>
+
+          <div class="slider-group compact" data-views="stick look">
+            <div class="slider-header">
+              <label for="stickMaxSpeed">Velocidade máxima</label>
+              <span id="stickMaxSpeedVal" class="val" aria-hidden="true">60°/s</span>
+            </div>
+            <div class="slider-help">O mais rápido que o gimbal gira. A roda do mouse também ajusta.</div>
+            <input id="stickMaxSpeed" type="range" min="10" max="120" value="60" step="5">
+          </div>
+          <div class="slider-group compact" data-views="look">
+            <div class="slider-header">
+              <label for="mouseSens">Sensibilidade do mouse</label>
+              <span id="mouseSensVal" class="val" aria-hidden="true">Média</span>
+            </div>
+            <div class="slider-help">Quanto o gimbal gira para cada movimento do mouse no modo Mouse livre.</div>
+            <input id="mouseSens" type="range" min="0.02" max="0.50" value="0.12" step="0.02">
+          </div>
+          <div class="slider-group compact" data-views="stick">
+            <div class="slider-header">
+              <label for="stickDeadzone">Folga no centro</label>
+              <span id="stickDeadzoneVal" class="val" aria-hidden="true">10%</span>
+            </div>
+            <div class="slider-help">Quanto arrastar antes de começar a mover. Evita tremidas.</div>
+            <input id="stickDeadzone" type="range" min="0" max="40" value="10" step="1">
+          </div>
+          <div class="slider-group compact" data-views="stick">
+            <div class="slider-header">
+              <label for="stickExpo">Precisão perto do centro</label>
+              <span id="stickExpoVal" class="val" aria-hidden="true">40%</span>
+            </div>
+            <div class="slider-help">Mais alto = pequenos movimentos ficam lentos e precisos.</div>
+            <input id="stickExpo" type="range" min="0" max="100" value="40" step="5">
+          </div>
+          <div class="slider-group compact" data-views="stick look">
+            <div class="slider-header">
+              <label for="stickSmooth">Parada suave</label>
+              <span id="stickSmoothVal" class="val" aria-hidden="true">50%</span>
+            </div>
+            <div class="slider-help">Mais alto = o gimbal desacelera devagar quando você solta.</div>
+            <input id="stickSmooth" type="range" min="0" max="80" value="50" step="5">
+          </div>
+
+          <div class="switch-row">
+            <button id="invertX" type="button" class="switch" role="switch" aria-checked="false" aria-label="Inverter esquerda e direita">
+              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              <span class="switch-text" aria-hidden="true"><span>INVERTER ↔</span><span class="switch-state">NÃO</span></span>
+            </button>
+            <button id="invertY" type="button" class="switch" role="switch" aria-checked="false" aria-label="Inverter cima e baixo">
+              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              <span class="switch-text" aria-hidden="true"><span>INVERTER ↕</span><span class="switch-state">NÃO</span></span>
+            </button>
+            <button id="oneAxisBtn" type="button" class="switch" role="switch" aria-checked="false" data-views="stick"
+                    aria-label="Um eixo por vez: move só para os lados ou só para cima e baixo">
+              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              <span class="switch-text" aria-hidden="true"><span>UM EIXO POR VEZ</span><span class="switch-state">NÃO</span></span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ TELA 3: Estabilização ============ -->
+    <section class="card" aria-labelledby="stabTitle">
+      <div class="card-title" id="stabTitle">Estabilização</div>
+      <div class="stab-stack">
+        <div id="stabOffline" class="offline-note">Conecte o gimbal para usar estas opções.</div>
+
+        <div class="big-toggle">
+          <div class="bt-text">
+            <div class="bt-title">Seguir o movimento da mão</div>
+            <div class="bt-desc"><strong>Ligado:</strong> a câmera acompanha devagar quando você vira o punho.<br>
+              <strong>Desligado:</strong> a câmera fica apontada sempre para o mesmo lugar (Lock).</div>
+            <div class="bt-extra"><span id="modeChip" class="chip"><i></i><span>Aguardando o gimbal…</span></span></div>
+          </div>
+          <button id="followSwitch" type="button" class="switch big green on" role="switch" aria-checked="true" aria-keyshortcuts="M"
+                  aria-label="Seguir o movimento da mão" disabled>
+            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span class="switch-text" aria-hidden="true"><span>SEGUIR</span><span class="switch-state">LIGADO</span></span>
+          </button>
+        </div>
+
+        <div>
+          <div class="field-label" id="followSpeedLabel">Como seguir</div>
+          <div id="followSeg" class="seg" role="radiogroup" aria-labelledby="followSpeedLabel">
+            <button class="seg-btn active" type="button" role="radio" aria-checked="true" data-follow="2" disabled>Suave</button>
+            <button class="seg-btn" type="button" role="radio" aria-checked="false" data-follow="3" disabled>Rápido</button>
+            <button class="seg-btn" type="button" role="radio" aria-checked="false" data-follow="1" disabled>Tudo (FPV) <em>TESTE</em></button>
+          </div>
+          <p id="followHelp" class="field-help"></p>
+        </div>
+
+        <div class="big-toggle">
+          <div class="bt-text">
+            <div class="bt-title">Motores</div>
+            <div class="bt-desc">Desligar solta os motores (sem estabilização). O gimbal continua ligado e conectado — útil para encaixar ou ajustar o celular.</div>
+            <p id="motorHelp" class="field-help" hidden>Se os motores não voltarem pelo botão, desligue e ligue o gimbal (segure o botão de energia por 1,5 s).</p>
+          </div>
+          <button id="motorSwitch" type="button" class="switch big green on" role="switch" aria-checked="true" aria-label="Motores ligados" disabled>
+            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span class="switch-text" aria-hidden="true"><span>MOTORES</span><span class="switch-state">LIGADOS</span></span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Logs -->
+    <section class="card log-card">
+      <div class="log-header">
+        <div class="card-title log-title">Registro</div>
+        <div class="log-tools">
+          <label class="chk"><input id="rxLog" type="checkbox"> Mostrar tudo que chega</label>
+          <button id="clearLogBtn" type="button" class="secondary small-btn">Limpar</button>
+        </div>
+      </div>
+      <pre id="log" class="log" tabindex="0" aria-label="Registro de eventos"></pre>
+    </section>
+  </div>
+
+  <!-- Região ao vivo para leitores de tela -->
+  <div id="srLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <script>
+    // =====================================================================
+    // Protocolo DUML (DJI) sobre BLE — serviço FFF0, escrita FFF5, notificação FFF4
+    // Referências: dissector dji-firmware-tools (cmdset 0x04 = gimbal), DJI R SDK Protocol v2.3,
+    // manual do Osmo Mobile 2 (pan ±160°, tilt ±155°, 120°/s) e testes no aparelho real.
+    // =====================================================================
+    const SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb";
+    const NOTIFY_UUID  = "0000fff4-0000-1000-8000-00805f9b34fb";
+    const WRITE_UUID   = "0000fff5-0000-1000-8000-00805f9b34fb";
+
+    const DUML = {
+      SOF: 0x55,
+      SENDER_APP: 0x02,
+      RECEIVER_GIMBAL: 0x04,
+      CMDSET_GIMBAL: 0x04,
+      CMD: {
+        PARAMS_PUSH: 0x05,         // atitude + modo (confirmado no OM2)
+        SUSPEND_RESUME: 0x0d,      // motores
+        ABS_ANGLE_CONTROL: 0x14,   // movimento (confirmado no OM2)
+        RESET_AND_SET_MODE: 0x4c,  // [modo, comando] (Lock confirmado no OM2)
+      },
+      CTRL: { ABSOLUTE: 0x01, YAW_INVALID: 0x02, ROLL_INVALID: 0x04, PITCH_INVALID: 0x08 },
+      MODE: { LOCK: 0x00, FPV: 0x01, FOLLOW: 0x02, SPORT: 0x03 },   // o OM2 só tem Walk (Suave) e Sport (Rápido) de velocidade
+      MODE_CMD: { NONE: 0x00 },
+      MOTORS_OFF: 0x2ab5,          // no OM2 este valor soltou os motores (teste do usuário)
+      MOTORS_ON: 0x7ef2,           // tentativa de religar (a confirmar)
+    };
+    const LIMITS = { PAN: 160, TILT: 155, MAX_RATE: 120 };   // manual do OM2
+
+    // ===== Elementos =====
+    const $ = (id) => document.getElementById(id);
+    const connectBtn = $("connectBtn"), otherDeviceBtn = $("otherDeviceBtn"), disconnectBtn = $("disconnectBtn");
+    const statusDot = $("statusDot"), statusText = $("statusText");
+    const logEl = $("log"), clearLogBtn = $("clearLogBtn"), rxLogChk = $("rxLog");
+    const nameFilterInput = $("nameFilter"), srLive = $("srLive");
+
+    const remoteBody = $("remoteBody"), pwrLed = $("pwrLed"), txLed = $("txLed"), btnLed = $("btnLed");
+    const lcdMode = $("lcdMode"), lcdLocks = $("lcdLocks"), lcdAction = $("lcdAction"), lcdAtt = $("lcdAtt");
+    const btnUp = $("btnUp"), btnDown = $("btnDown"), btnLeft = $("btnLeft"), btnRight = $("btnRight");
+    const btnCenter = $("btnCenter"), centerIcon = $("centerIcon"), centerText = $("centerText");
+    const lockPanBtn = $("lockPan"), lockTiltBtn = $("lockTilt");
+    const speedSlider = $("speedSlider"), speedVal = $("speedVal");
+    const presetLeft45 = $("presetLeft45"), presetRight45 = $("presetRight45"), quickFollowBtn = $("quickFollowBtn"), sweepBtn = $("sweepBtn");
+
+    const tabs = [$("tabStick"), $("tabLook")];
+    const viewHelp = $("viewHelp"), stickBrand = $("stickBrand"), activeLed = $("activeLed");
+    const views = { stick: $("viewStick"), look: $("viewLook") };
+    const stickPad = $("stickPad"), stickKnob = $("stickKnob");
+    const lookPad = $("lookPad"), lookDot = $("lookDot"), lookText = $("lookText");
+    const rateYaw = $("rateYaw"), ratePitch = $("ratePitch");
+    const invertXBtn = $("invertX"), invertYBtn = $("invertY"), oneAxisBtn = $("oneAxisBtn");
+    const feelBtns = [...document.querySelectorAll("[data-feel]")];
+
+    const stabOffline = $("stabOffline"), followSwitch = $("followSwitch"), modeChip = $("modeChip");
+    const followBtns = [...document.querySelectorAll("[data-follow]")], followSeg = $("followSeg"), followHelp = $("followHelp");
+    const motorSwitch = $("motorSwitch"), motorHelp = $("motorHelp");
+
+    // ===== Estado =====
+    let device = null, server = null, notifyChar = null, writeChar = null;
+    let isConnected = false;
+    let sweepTimer = null, sweepDir = 1;
+    const locks = { pan: false, tilt: false };
+    const gimbal = { att: null, pushMode: null };               // o que o gimbal informa (push 04/05)
+    const stab = { follow: true, followMode: DUML.MODE.FOLLOW, motorsOn: true, lastModeSentAt: 0 };
+
+    // ===== Utilidades =====
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const hex2 = (b) => b.toString(16).padStart(2, "0");
+    const hex = (bytes) => Array.from(bytes, hex2).join(" ");
+    const signed = (v, d = 1) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(d);
+
+    function log(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      logEl.textContent = `[${timestamp}] ${message}\n` + logEl.textContent;
+    }
+    const noticeTimes = new Map();
+    function notice(message, gapMs = 1500) {
+      const now = Date.now();
+      if ((noticeTimes.get(message) || 0) > now - gapMs) return;
+      noticeTimes.set(message, now);
+      log(message);
+    }
+    function announce(text) {
+      srLive.textContent = "";
+      setTimeout(() => { srLive.textContent = text; }, 30);
+    }
+
+    function int16LE(value) {
+      const view = new DataView(new ArrayBuffer(2));
+      view.setInt16(0, value, true);
+      return [view.getUint8(0), view.getUint8(1)];
+    }
+    const readInt16LE = (arr, i) => ((arr[i + 1] << 8) | arr[i]) << 16 >> 16;
+
+    // CRC-8 do cabeçalho (poly refletido 0x8C, semente 0x77): [55 15 04] -> a9
+    const CRC8_TABLE = (() => {
+      const t = [];
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (c >>> 1) ^ 0x8c : c >>> 1;
+        t.push(c);
+      }
+      return t;
+    })();
+    function crc8(bytes, seed = 0x77) {
+      let c = seed;
+      for (const b of bytes) c = CRC8_TABLE[(c ^ b) & 0xff];
+      return c;
+    }
+
+    // CRC-16 do quadro inteiro (semente 0x3692; o protótipo original usava 0xDF0C já avançada pelo cabeçalho fixo)
+    const CRC16_TABLE = [
+        0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
+        0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
+        0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
+        0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876,
+        0x2102, 0x308b, 0x0210, 0x1399, 0x6726, 0x76af, 0x4434, 0x55bd,
+        0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e, 0xfae7, 0xc87c, 0xd9f5,
+        0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e, 0x54b5, 0x453c,
+        0xbdcb, 0xac42, 0x9ed9, 0x8f50, 0xfbef, 0xea66, 0xd8fd, 0xc974,
+        0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb,
+        0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3,
+        0x5285, 0x430c, 0x7197, 0x601e, 0x14a1, 0x0528, 0x37b3, 0x263a,
+        0xdecd, 0xcf44, 0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72,
+        0x6306, 0x728f, 0x4014, 0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9,
+        0xef4e, 0xfec7, 0xcc5c, 0xddd5, 0xa96a, 0xb8e3, 0x8a78, 0x9bf1,
+        0x7387, 0x620e, 0x5095, 0x411c, 0x35a3, 0x242a, 0x16b1, 0x0738,
+        0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862, 0x9af9, 0x8b70,
+        0x8408, 0x9581, 0xa71a, 0xb693, 0xc22c, 0xd3a5, 0xe13e, 0xf0b7,
+        0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
+        0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036,
+        0x18c1, 0x0948, 0x3bd3, 0x2a5a, 0x5ee5, 0x4f6c, 0x7df7, 0x6c7e,
+        0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5,
+        0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd,
+        0xb58b, 0xa402, 0x9699, 0x8710, 0xf3af, 0xe226, 0xd0bd, 0xc134,
+        0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
+        0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3,
+        0x4a44, 0x5bcd, 0x6956, 0x78df, 0x0c60, 0x1de9, 0x2f72, 0x3efb,
+        0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
+        0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a,
+        0xe70e, 0xf687, 0xc41c, 0xd595, 0xa12a, 0xb0a3, 0x8238, 0x93b1,
+        0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
+        0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
+        0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78,
+        0x8808, 0x9981, 0xab1a, 0xba93, 0xce2c, 0xdfa5, 0xed3e, 0xfcb7,
+        0x0440, 0x15c9, 0x2752, 0x36db, 0x4264, 0x53ed, 0x6176, 0x70ff,
+        0x9809, 0x8980, 0xbb1b, 0xaa92, 0xde2d, 0xcfa4, 0xfd3f, 0xecb6,
+        0x1441, 0x05c8, 0x3753, 0x26da, 0x5265, 0x43ec, 0x7177, 0x60fe,
+        0xa90a, 0xb883, 0x8a18, 0x9b91, 0xef2e, 0xfea7, 0xcc3c, 0xddb5,
+        0x2542, 0x34cb, 0x0650, 0x17d9, 0x6366, 0x72ef, 0x4074, 0x51fd,
+        0xb90b, 0xa882, 0x9a19, 0x8b90, 0xff2f, 0xeea6, 0xdc3d, 0xcdb4,
+        0x3543, 0x24ca, 0x1651, 0x07d8, 0x7367, 0x62ee, 0x5075, 0x41fc,
+        0xc69b, 0xd712, 0xe589, 0xf400, 0x80bf, 0x9136, 0xa3ad, 0xb224,
+        0x4ad3, 0x5b5a, 0x69c1, 0x7848, 0x0cf7, 0x1d7e, 0x2fe5, 0x3e6c,
+        0xd69a, 0xc713, 0xf588, 0xe401, 0x90be, 0x8137, 0xb3ac, 0xa225,
+        0x5ad2, 0x4b5b, 0x79c0, 0x6849, 0x1cf6, 0x0d7f, 0x3fe4, 0x2e6d,
+        0xe79b, 0xf612, 0xc489, 0xd500, 0xa1bf, 0xb036, 0x82ad, 0x9324,
+        0x6bd3, 0x7a5a, 0x48c1, 0x5948, 0x2df7, 0x3c7e, 0x0ee5, 0x1f6c,
+        0xf79a, 0xe613, 0xd488, 0xc501, 0xb1be, 0xa037, 0x92ac, 0x8325,
+        0x7bd2, 0x6a5b, 0x58c0, 0x4949, 0x3df6, 0x2c7f, 0x1ee4, 0x0f6d
+    ];
+    function crc16(bytes, seed = 0x3692) {
+      let crc = seed;
+      for (let i = 0; i < bytes.length; i += 1) crc = (crc >> 8) ^ CRC16_TABLE[(bytes[i] ^ crc) & 0xff];
+      return crc;
+    }
+
+    let seqCounter = 0;
+    function nextSeq() { seqCounter = (seqCounter % 0xffff) + 1; return seqCounter; }
+
+    function buildDuml({ cmdSet, cmdId, payload = [], ack = false, seq = nextSeq() }) {
+      const len = 4 + 7 + payload.length + 2;
+      const header = [DUML.SOF, len & 0xff, 0x04 | ((len >> 8) & 0x03)];
+      header.push(crc8(header));
+      const body = [DUML.SENDER_APP, DUML.RECEIVER_GIMBAL, seq & 0xff, (seq >> 8) & 0xff, ack ? 0x40 : 0x00, cmdSet & 0xff, cmdId & 0xff];
+      const frame = [...header, ...body, ...payload.map((b) => b & 0xff)];
+      const crc = crc16(frame);
+      return { bytes: Uint8Array.from([...frame, crc & 0xff, (crc >> 8) & 0xff]), seq };
+    }
+
+    function buildRotateMessage({ yaw, pitch, roll = 0, time, mode = "relative", ctrl }) {
+      const ctrlByte = ctrl ?? ((mode === "absolute" ? DUML.CTRL.ABSOLUTE : 0) | DUML.CTRL.ROLL_INVALID);
+      const payload = [...int16LE(yaw), ...int16LE(roll), ...int16LE(pitch), ctrlByte & 0xff, time & 0xff];
+      return buildDuml({ cmdSet: DUML.CMDSET_GIMBAL, cmdId: DUML.CMD.ABS_ANGLE_CONTROL, payload }).bytes;
+    }
+
+    // Fila de escrita: o GATT só aceita uma operação por vez e cada quadro (21+ bytes)
+    // vai em 2 pedaços de 20 bytes — sem a fila, quadros de ticks diferentes se misturavam.
+    let writeChain = Promise.resolve(), pendingWrites = 0;
+    const writeBusy = () => pendingWrites > 1;
+    function resetWriteQueue() { writeChain = Promise.resolve(); pendingWrites = 0; }
+    function writeMessage(message) {
+      const ch = writeChar;
+      if (!ch) return Promise.resolve();
+      pendingWrites++;
+      const job = writeChain.then(async () => {
+        if (ch !== writeChar) return;            // conexão trocou enquanto esperava
+        flashTx();
+        const chunkSize = 20;
+        for (let offset = 0; offset < message.length; offset += chunkSize) {
+          const chunk = message.slice(offset, offset + chunkSize);
+          if (ch.properties.writeWithoutResponse) await ch.writeValueWithoutResponse(chunk);
+          else await ch.writeValue(chunk);
+        }
+      }).finally(() => { pendingWrites = Math.max(0, pendingWrites - 1); });
+      writeChain = job.catch(() => {});
+      return job;
+    }
+
+    let txTimer = null;
+    function flashTx() {
+      txLed.classList.add("on");
+      clearTimeout(txTimer);
+      txTimer = setTimeout(() => txLed.classList.remove("on"), 140);
+    }
+
+    // Movimento: envia 04/14 (relativo ou absoluto)
+    async function executeMove(yawDeg, pitchDeg, mode = "relative", timeSec = 0.2, opts = {}) {
+      if (!isConnected) return;
+      let ctrl = (mode === "absolute" ? DUML.CTRL.ABSOLUTE : 0) | DUML.CTRL.ROLL_INVALID;
+      if (opts.ignoreYaw) ctrl |= DUML.CTRL.YAW_INVALID;
+      if (opts.ignorePitch) ctrl |= DUML.CTRL.PITCH_INVALID;
+      const msg = buildRotateMessage({
+        yaw: Math.round(yawDeg * 10), pitch: Math.round(pitchDeg * 10), roll: 0,
+        time: Math.round(timeSec * 10), ctrl,
+      });
+      try { await writeMessage(msg); } catch (err) { notice(`Falha ao enviar movimento: ${err.message || err}`, 3000); }
+    }
+
+    // ---- Comandos com ACK opcional ----
+    const pendingAcks = new Map();
+    function registerAck(seq, label, onAck) {
+      const t = setTimeout(() => { if (pendingAcks.delete(seq) && rxLogChk.checked) log(`Sem resposta para ${label} (2 s).`); }, 2000);
+      pendingAcks.set(seq, { label, onAck, t });
+    }
+    async function sendCommand(cmdSet, cmdId, payload, { ack = true, label = `${hex2(cmdSet)}/${hex2(cmdId)}`, onAck, quiet = false } = {}) {
+      if (!isConnected) { notice(`Gimbal desconectado — ${label} não enviado.`); return false; }
+      const { bytes, seq } = buildDuml({ cmdSet, cmdId, payload, ack });
+      if (ack) registerAck(seq, label, onAck);
+      if (!quiet || rxLogChk.checked) log(`Enviado: ${label}${rxLogChk.checked ? " · " + hex(bytes) : ""}`);
+      try { await writeMessage(bytes); return true; }
+      catch (err) { log(`Erro ao enviar ${label}: ${err.message || err}`); return false; }
+    }
+
+    // ---- Recepção ----
+    let rxBuffer = [];
+    function onNotify(e) {
+      const v = e.target.value;
+      ingestBytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    }
+    function ingestBytes(bytes) {
+      rxBuffer.push(...bytes);
+      while (rxBuffer.length >= 4) {
+        if (rxBuffer[0] !== DUML.SOF) { rxBuffer.shift(); continue; }
+        const len = rxBuffer[1] | ((rxBuffer[2] & 0x03) << 8);
+        if (len < 13 || crc8(rxBuffer.slice(0, 3)) !== rxBuffer[3]) { rxBuffer.shift(); continue; }
+        if (rxBuffer.length < len) break;
+        handleFrame(rxBuffer.splice(0, len));
+      }
+      if (rxBuffer.length > 512) rxBuffer = [];
+    }
+
+    function handleFrame(frame) {
+      const len = frame.length;
+      const crcOk = crc16(frame.slice(0, len - 2)) === (frame[len - 2] | (frame[len - 1] << 8));
+      const seq = frame[6] | (frame[7] << 8);
+      const cmdType = frame[8], cmdSet = frame[9], cmdId = frame[10];
+      const payload = frame.slice(11, len - 2);
+      const isReply = (cmdType & 0x80) !== 0;
+      const isAttitude = cmdSet === DUML.CMDSET_GIMBAL && cmdId === DUML.CMD.PARAMS_PUSH && !isReply;
+      if (rxLogChk.checked && !isAttitude) {
+        log(`Recebido ${isReply ? "resposta" : "sinal"} ${hex2(cmdSet)}/${hex2(cmdId)} seq=${seq}${crcOk ? "" : " (CRC inválido)"}: ${hex(payload) || "(vazio)"}`);
+      }
+      if (!crcOk) return;
+      if (isReply && pendingAcks.has(seq)) {
+        const p = pendingAcks.get(seq);
+        pendingAcks.delete(seq);
+        clearTimeout(p.t);
+        const ret = payload.length ? payload[0] : null;
+        if (rxLogChk.checked) log(`Resposta a ${p.label}: ${ret === null ? "sem carga" : `ret=0x${hex2(ret)}${ret === 0 ? " (ok)" : ""}`}`);
+        if (p.onAck) p.onAck(ret, payload);
+        return;
+      }
+      if (isAttitude && payload.length >= 7) { onAttitudePush(payload); return; }
+      if (!isReply) hwOtherFrame(`${hex2(cmdSet)}/${hex2(cmdId)}`, payload);
+    }
+
+    // ===== Atitude e modo enviados pelo gimbal =====
+    const PUSH_MODE = { 0: "Posição fixa (Lock)", 1: "Seguindo tudo (FPV)", 2: "Seguindo a mão", 3: "Calibrando" };
+    function onAttitudePush(p) {
+      gimbal.att = { pitch: readInt16LE(p, 0) / 10, roll: readInt16LE(p, 2) / 10, yaw: readInt16LE(p, 4) / 10 };
+      renderLcdAttitude();
+      const mode = (p[6] & 0xc0) >> 6;
+      if (mode !== gimbal.pushMode) { gimbal.pushMode = mode; syncFromPushMode(); }
+      hwFromPush(p);
+    }
+
+    // =====================================================================
+    // Visor LCD
+    // =====================================================================
+    let lcdFlashText = null, lcdFlashTimer = null;
+    function lcdMessage(text, ms = 1600) {
+      lcdFlashText = text;
+      clearTimeout(lcdFlashTimer);
+      lcdFlashTimer = setTimeout(() => { lcdFlashText = null; renderLcd(); }, ms);
+      renderLcd();
+    }
+    const FOLLOW_SHORT = { 1: "TUDO", 2: "SUAVE", 3: "RÁPIDO" };
+    function renderLcd() {
+      lcdMode.textContent = !isConnected ? "SEM CONEXÃO"
+        : !stab.motorsOn ? "MOTORES DESLIGADOS"
+        : stab.follow ? `SEGUE A MÃO · ${FOLLOW_SHORT[stab.followMode]}` : "POSIÇÃO FIXA";
+      lcdLocks.textContent = locks.pan && locks.tilt ? "BLOQ P+T" : locks.pan ? "BLOQ PAN" : locks.tilt ? "BLOQ TILT" : "";
+      let action;
+      if (lcdFlashText) action = lcdFlashText;
+      else if (!isConnected) action = "DESCONECTADO";
+      else if (sweepTimer) action = "⇄ SWEEP";
+      else if (current.yaw || current.pitch) {
+        const arrows = (current.yaw > 0 ? "▶" : current.yaw < 0 ? "◀" : "") + (current.pitch > 0 ? "▲" : current.pitch < 0 ? "▼" : "");
+        action = `${arrows} ${Math.round(Math.max(Math.abs(current.yaw), Math.abs(current.pitch)))}°/S`;
+      } else action = "PRONTO";
+      lcdAction.textContent = action;
+    }
+    function renderLcdAttitude() {
+      lcdAtt.textContent = gimbal.att
+        ? `TILT ${signed(gimbal.att.pitch)}°   PAN ${signed(gimbal.att.yaw)}°`
+        : "TILT --.-°   PAN --.-°";
+    }
+
+    // ===== Status / disponibilidade =====
+    function updateAvailability() {
+      const off = !isConnected;
+      sweepBtn.disabled = off || locks.pan;
+      presetLeft45.disabled = presetRight45.disabled = off || locks.pan;
+      quickFollowBtn.disabled = off;
+      [followSwitch, motorSwitch, ...followBtns].forEach((b) => { b.disabled = off; });
+      stabOffline.hidden = !off;
+      sweepBtn.title = locks.pan ? "Sweep indisponível com o pan bloqueado" : "";
+      presetLeft45.title = presetRight45.title = locks.pan ? "Pan bloqueado" : "";
+    }
+
+    function setStatus(connected, text) {
+      const changed = isConnected !== connected;
+      isConnected = connected;
+      statusDot.classList.toggle("connected", connected);
+      statusText.textContent = text;
+      connectBtn.disabled = connected;
+      connectBtn.textContent = device && !connected ? "Reconectar" : "Conectar Gimbal";
+      otherDeviceBtn.hidden = connected || !device;
+      disconnectBtn.disabled = !connected;
+      document.querySelectorAll(".remote-body").forEach((b) => b.classList.toggle("offline", !connected));
+      pwrLed.classList.toggle("on", connected);
+      if (!connected) { gimbal.pushMode = null; }
+      updateAvailability();
+      updateMotion();
+      renderStab();
+      renderLcd();
+      if (changed) announce(connected ? `Gimbal conectado: ${text}` : "Gimbal desconectado");
+    }
+
+    // ===== Conexão =====
+    async function openGatt() {
+      server = await device.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      notifyChar = await service.getCharacteristic(NOTIFY_UUID);
+      writeChar = await service.getCharacteristic(WRITE_UUID);
+      notifyChar.addEventListener("characteristicvaluechanged", onNotify);
+      await notifyChar.startNotifications();
+      rxBuffer = [];
+      resetWriteQueue();
+      hwStartBaseline();
+      setStatus(true, device.name || "Conectado");
+      log("Conectado com sucesso!");
+      lcdMessage("CONECTADO");
+    }
+
+    async function connect(chooseNew = false) {
+      if (!navigator.bluetooth) { log("Web Bluetooth não suportado neste navegador (use Chrome ou Edge)."); return; }
+      try {
+        if (!chooseNew && device && !device.gatt.connected) {
+          log(`Reconectando a ${device.name || "gimbal"}...`);
+          await openGatt();
+          return;
+        }
+        const nameFilter = nameFilterInput.value.trim();
+        const options = { optionalServices: [SERVICE_UUID] };
+        if (nameFilter) options.filters = [{ namePrefix: nameFilter }];
+        else options.acceptAllDevices = true;
+        log("Buscando gimbal...");
+        const chosen = await navigator.bluetooth.requestDevice(options);
+        if (device && device !== chosen) device.removeEventListener("gattserverdisconnected", onDisconnected);
+        device = chosen;
+        device.addEventListener("gattserverdisconnected", onDisconnected);
+        await openGatt();
+      } catch (err) {
+        if (err && err.name === "NotFoundError") log("Nenhum aparelho escolhido.");
+        else log(`Erro de conexão: ${err.message || err}`);
+        if (device?.gatt?.connected) device.gatt.disconnect();
+        setStatus(false, "Desconectado");
+      }
+    }
+
+    async function disconnect() {
+      stopAll("desconectar", { quiet: true });
+      if (device?.gatt?.connected) device.gatt.disconnect();
+      else onDisconnected();
+    }
+
+    function onDisconnected() {
+      writeChar = null; notifyChar = null;
+      resetWriteQueue();
+      stopAll("queda da conexão", { quiet: true });
+      setStatus(false, "Desconectado");
+      if (isConnected || device) log("Gimbal desconectado. Use \"Reconectar\" para voltar sem escolher de novo.");
+    }
+
+    // =====================================================================
+    // Núcleo de movimento: setas/teclado + joystick/mouse livre somados, bloqueios aplicados
+    // =====================================================================
+    const TICK_MS = 100, TICK_GAIN = 0.15, MOVE_TIME_S = 0.2;
+    const padDir = { yaw: 0, pitch: 0 };
+    const motion = { stick: { yaw: 0, pitch: 0 } };
+    const current = { yaw: 0, pitch: 0 };
+    let motionTimer = null, accYaw = 0, accPitch = 0;
+
+    function updateMotion() {
+      const speed = parseFloat(speedSlider.value);
+      let yaw = clamp(padDir.yaw * speed + motion.stick.yaw, -LIMITS.MAX_RATE, LIMITS.MAX_RATE);
+      let pitch = clamp(padDir.pitch * speed + motion.stick.pitch, -LIMITS.MAX_RATE, LIMITS.MAX_RATE);
+      if (locks.pan) yaw = 0;
+      if (locks.tilt) pitch = 0;
+      if (!isConnected) { yaw = 0; pitch = 0; }
+      const changed = yaw !== current.yaw || pitch !== current.pitch;
+      current.yaw = yaw;
+      current.pitch = pitch;
+      if (changed && (yaw || pitch) && lcdFlashText) { lcdFlashText = null; clearTimeout(lcdFlashTimer); }  // movimento novo tem prioridade no visor
+      if (changed) { updateRateReadout(); renderLcd(); }
+      if (yaw === 0 && pitch === 0) { stopMotion(); return; }
+      if (!motionTimer) { motionTick(); motionTimer = setInterval(motionTick, TICK_MS); }
+    }
+
+    function motionTick() {
+      accYaw += current.yaw * TICK_GAIN;
+      accPitch += current.pitch * TICK_GAIN;
+      if (writeBusy()) return;                     // BLE ocupado: soma no próximo envio
+      const sy = Math.round(accYaw * 10) / 10;
+      const sp = Math.round(accPitch * 10) / 10;
+      accYaw -= sy;
+      accPitch -= sp;
+      if (sy !== 0 || sp !== 0) executeMove(sy, sp, "relative", MOVE_TIME_S);
+    }
+
+    function stopMotion() {
+      if (motionTimer) { clearInterval(motionTimer); motionTimer = null; }
+      accYaw = 0; accPitch = 0;
+      if (current.yaw || current.pitch) { current.yaw = 0; current.pitch = 0; renderLcd(); }
+      updateRateReadout();
+    }
+
+    function updateRateReadout() {
+      rateYaw.textContent = signed(current.yaw);
+      ratePitch.textContent = signed(current.pitch);
+      rateYaw.classList.toggle("live", current.yaw !== 0);
+      ratePitch.classList.toggle("live", current.pitch !== 0);
+    }
+
+    // ===== Setas: ponteiro, teclado e foco =====
+    const DIRS = {
+      up:    { btn: btnUp,    yaw: 0,  pitch: 1,  axis: "tilt" },
+      down:  { btn: btnDown,  yaw: 0,  pitch: -1, axis: "tilt" },
+      left:  { btn: btnLeft,  yaw: -1, pitch: 0,  axis: "pan"  },
+      right: { btn: btnRight, yaw: 1,  pitch: 0,  axis: "pan"  },
+    };
+    const KEY_TO_DIR = new Map([
+      ["w", "up"], ["arrowup", "up"], ["s", "down"], ["arrowdown", "down"],
+      ["a", "left"], ["arrowleft", "left"], ["d", "right"], ["arrowright", "right"],
+    ]);
+    const heldSources = { up: new Set(), down: new Set(), left: new Set(), right: new Set() };
+
+    function press(dir, source) { heldSources[dir].add(source); refreshPad(); }
+    function release(dir, source) { if (heldSources[dir].delete(source)) refreshPad(); }
+    function releaseAll() { Object.values(heldSources).forEach((s) => s.clear()); refreshPad(); }
+
+    function refreshPad() {
+      let yaw = 0, pitch = 0;
+      for (const [dir, cfg] of Object.entries(DIRS)) {
+        const held = heldSources[dir].size > 0;
+        cfg.btn.classList.toggle("is-pressed", held);
+        if (held) { yaw += cfg.yaw; pitch += cfg.pitch; }
+      }
+      yaw = Math.sign(yaw);
+      pitch = Math.sign(pitch);
+      if ((yaw || pitch) && !isConnected) { notice("Gimbal desconectado — conecte para mover."); lcdMessage("CONECTE O GIMBAL", 1200); }
+      if (isConnected && locks.pan && yaw) { notice("Pan bloqueado — pressione P para liberar."); lcdMessage("PAN BLOQUEADO", 1000); }
+      if (isConnected && locks.tilt && pitch) { notice("Tilt bloqueado — pressione T para liberar."); lcdMessage("TILT BLOQUEADO", 1000); }
+      padDir.yaw = yaw;
+      padDir.pitch = pitch;
+      updateMotion();
+    }
+
+    function bindPad(btn, dir) {
+      const ptrSource = (e) => `ptr:${e.pointerId}`;
+      btn.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+        press(dir, ptrSource(e));
+      });
+      const endPtr = (e) => release(dir, ptrSource(e));
+      btn.addEventListener("pointerup", endPtr);
+      btn.addEventListener("pointercancel", endPtr);
+      btn.addEventListener("lostpointercapture", endPtr);
+      btn.addEventListener("pointerleave", endPtr);
+      btn.addEventListener("contextmenu", (e) => e.preventDefault());
+      btn.addEventListener("keydown", (e) => {
+        if (e.key !== " " && e.key !== "Enter") return;
+        e.preventDefault();
+        if (!e.repeat) press(dir, "focus");
+      });
+      btn.addEventListener("keyup", (e) => {
+        if (e.key !== " " && e.key !== "Enter") return;
+        e.preventDefault();
+        release(dir, "focus");
+      });
+      btn.addEventListener("blur", () => release(dir, "focus"));
+    }
+    Object.entries(DIRS).forEach(([dir, cfg]) => bindPad(cfg.btn, dir));
+
+    function flashButton(btn) {
+      btn.classList.add("is-pressed");
+      setTimeout(() => btn.classList.remove("is-pressed"), 160);
+    }
+
+    // ===== Botão central: CENTRO / PARAR =====
+    function renderCenterBtn() {
+      const stopMode = !!sweepTimer;
+      btnCenter.classList.toggle("stop-mode", stopMode);
+      centerIcon.textContent = stopMode ? "■" : "⌖";
+      centerText.textContent = stopMode ? "PARAR" : "CENTRO";
+      btnCenter.setAttribute("aria-label", stopMode ? "Parar o sweep" : "Centralizar o gimbal");
+    }
+
+    function centerGimbal() {
+      if (!isConnected) { notice("Gimbal desconectado — conecte para centralizar."); lcdMessage("CONECTE O GIMBAL", 1200); return; }
+      if (locks.pan && locks.tilt) { notice("Pan e tilt bloqueados — nada para centralizar."); lcdMessage("PAN+TILT BLOQUEADOS", 1200); return; }
+      executeMove(0, 0, "absolute", 0.8, { ignoreYaw: locks.pan, ignorePitch: locks.tilt });
+      const what = locks.pan ? "TILT" : locks.tilt ? "PAN" : "";
+      lcdMessage(`⌖ CENTRALIZANDO${what ? " " + what : ""}`);
+      log(`Centralizar${what ? " só o " + what.toLowerCase() : ""}.`);
+      announce("Centralizando");
+    }
+
+    btnCenter.addEventListener("click", () => {
+      if (sweepTimer) stopAll("botão parar");
+      else centerGimbal();
+    });
+
+    function stopAll(reason, { quiet = false } = {}) {
+      releaseAll();
+      stickReset();
+      if (document.pointerLockElement === lookPad) document.exitPointerLock();
+      stopMotion();
+      stopSweep();
+      if (!quiet) {
+        log(reason ? `Parado (${reason}).` : "Parado.");
+        announce("Tudo parado");
+        lcdMessage("■ PARADO", 1200);
+      }
+    }
+
+    // ===== Velocidade das setas =====
+    function setSpeed(value) {
+      const v = clamp(Math.round(value / 5) * 5, 10, LIMITS.MAX_RATE);
+      speedSlider.value = v;
+      speedVal.textContent = `${v}°/s`;
+      speedSlider.setAttribute("aria-valuetext", `${v} graus por segundo`);
+      updateMotion();
+    }
+    speedSlider.addEventListener("input", (e) => setSpeed(parseFloat(e.target.value)));
+
+    // ===== Bloqueios de eixo =====
+    function setSwitch(btn, on, onText, offText) {
+      btn.classList.toggle("on", on);
+      btn.setAttribute("aria-checked", String(on));
+      const st = btn.querySelector(".switch-state");
+      if (st && onText !== undefined) st.textContent = on ? onText : offText;
+    }
+
+    function setLock(axis, value) {
+      locks[axis] = value;
+      setSwitch(axis === "pan" ? lockPanBtn : lockTiltBtn, value, "BLOQUEADO", "LIVRE");
+      Object.values(DIRS).filter((c) => c.axis === axis).forEach((c) => c.btn.classList.toggle("axis-locked", value));
+      if (axis === "pan" && value && sweepTimer) stopSweep();
+      updateAvailability();
+      refreshPad();
+      const name = axis === "pan" ? "Pan" : "Tilt";
+      log(`${name} ${value ? "bloqueado" : "liberado"}.`);
+      announce(`${name} ${value ? "bloqueado" : "liberado"}`);
+      lcdMessage(`${name.toUpperCase()} ${value ? "BLOQUEADO" : "LIVRE"}`, 1000);
+    }
+    const toggleLock = (axis) => setLock(axis, !locks[axis]);
+    lockPanBtn.addEventListener("click", () => toggleLock("pan"));
+    lockTiltBtn.addEventListener("click", () => toggleLock("tilt"));
+
+    // ===== Presets e sweep =====
+    presetLeft45.addEventListener("click", () => { executeMove(-45, 0, "relative", 0.8); lcdMessage("↺ 45° ESQUERDA"); });
+    presetRight45.addEventListener("click", () => { executeMove(45, 0, "relative", 0.8); lcdMessage("↻ 45° DIREITA"); });
+
+    function startSweep() {
+      if (sweepTimer) return;
+      if (locks.pan) { log("Sweep não iniciado: o pan está bloqueado (P para liberar)."); return; }
+      sweepBtn.textContent = "■ Parar Sweep";
+      sweepBtn.classList.add("danger");
+      const step = () => {
+        const yaw = sweepDir > 0 ? 45 : -45;
+        sweepDir *= -1;
+        executeMove(yaw, 0, "relative", 1.0);
+      };
+      sweepTimer = setInterval(step, 1400);
+      renderCenterBtn();
+      renderLcd();
+      log("Sweep iniciado — o botão central virou PARAR.");
+    }
+    function stopSweep() {
+      if (!sweepTimer) return;
+      clearInterval(sweepTimer);
+      sweepTimer = null;
+      sweepBtn.textContent = "⇄ Sweep";
+      sweepBtn.classList.remove("danger");
+      renderCenterBtn();
+      renderLcd();
+    }
+    sweepBtn.addEventListener("click", () => { if (sweepTimer) stopAll("sweep"); else startSweep(); });
+
+    // =====================================================================
+    // Tela 2 — Joystick e Mouse livre
+    // =====================================================================
+    const VIEW_INFO = {
+      stick: { brand: "JOYSTICK", help: "Arraste a bolinha: quanto mais longe do centro, mais rápido o gimbal gira. Solte para parar." },
+      look:  { brand: "MOUSE LIVRE", help: "Clique no painel para capturar o mouse: mover o mouse gira o gimbal, como num jogo. Esc solta o mouse." },
+    };
+    let currentView = "stick";
+
+    function setView(view) {
+      if (view === currentView) return;
+      if (currentView === "stick") stickReset();
+      if (currentView === "look" && document.pointerLockElement === lookPad) document.exitPointerLock();
+      currentView = view;
+      Object.entries(views).forEach(([k, el]) => { el.hidden = k !== view; });
+      tabs.forEach((t) => {
+        const on = t.dataset.view === view;
+        t.classList.toggle("active", on);
+        t.setAttribute("aria-selected", String(on));
+      });
+      document.querySelectorAll("[data-views]").forEach((el) => { el.hidden = !el.dataset.views.split(" ").includes(view); });
+      stickBrand.innerHTML = `OSMO STICK<small>${VIEW_INFO[view].brand}</small>`;
+      viewHelp.textContent = VIEW_INFO[view].help;
+      updateMotion();
+    }
+    tabs.forEach((t) => t.addEventListener("click", () => setView(t.dataset.view)));
+
+    const stickCfg = { maxSpeed: 60, sens: 0.12, deadzone: 0.10, expo: 0.40, smooth: 0.50, invertX: false, invertY: false, oneAxis: false };
+    const stick = { active: false, look: false, target: { x: 0, y: 0 }, filtered: { yaw: 0, pitch: 0 }, lookAcc: { x: 0, y: 0 }, timer: null };
+
+    function shapeAxis(v) {
+      const a = Math.abs(v);
+      if (a <= stickCfg.deadzone) return 0;
+      let out = (a - stickCfg.deadzone) / (1 - stickCfg.deadzone);
+      out = (1 - stickCfg.expo) * out + stickCfg.expo * out * out * out;
+      return Math.sign(v) * Math.min(1, out);
+    }
+
+    function stickTargetRates() {
+      let x, y;
+      if (stick.look) {
+        const dx = stick.lookAcc.x, dy = stick.lookAcc.y;
+        stick.lookAcc.x = 0; stick.lookAcc.y = 0;
+        x = clamp((dx * stickCfg.sens) / TICK_GAIN, -stickCfg.maxSpeed, stickCfg.maxSpeed);
+        y = clamp((-dy * stickCfg.sens) / TICK_GAIN, -stickCfg.maxSpeed, stickCfg.maxSpeed);
+      } else {
+        x = shapeAxis(stick.target.x) * stickCfg.maxSpeed;
+        y = shapeAxis(stick.target.y) * stickCfg.maxSpeed;
+      }
+      if (stickCfg.invertX) x = -x;
+      if (stickCfg.invertY) y = -y;
+      if (stickCfg.oneAxis && !stick.look) { if (Math.abs(x) >= Math.abs(y)) y = 0; else x = 0; }
+      return { yaw: x, pitch: y };
+    }
+
+    function stickLoop() {
+      const t = stickTargetRates();
+      const k = 1 - stickCfg.smooth;
+      stick.filtered.yaw += (t.yaw - stick.filtered.yaw) * k;
+      stick.filtered.pitch += (t.pitch - stick.filtered.pitch) * k;
+      if (Math.abs(stick.filtered.yaw) < (t.yaw === 0 ? 0.5 : 0.05)) stick.filtered.yaw = 0;
+      if (Math.abs(stick.filtered.pitch) < (t.pitch === 0 ? 0.5 : 0.05)) stick.filtered.pitch = 0;
+      motion.stick.yaw = Math.round(stick.filtered.yaw * 10) / 10;
+      motion.stick.pitch = Math.round(stick.filtered.pitch * 10) / 10;
+      updateMotion();
+      drawStick();
+      const idle = !stick.active && !stick.look && motion.stick.yaw === 0 && motion.stick.pitch === 0;
+      activeLed.classList.toggle("on", !idle);
+      if (idle && stick.timer) { clearInterval(stick.timer); stick.timer = null; }
+    }
+    function ensureStickLoop() {
+      if (stick.timer) return;
+      stickLoop();
+      if (stick.active || stick.look || motion.stick.yaw || motion.stick.pitch) stick.timer = setInterval(stickLoop, TICK_MS);
+    }
+
+    function drawStick() {
+      const R = stickPad.clientWidth / 2 - 26;
+      stickKnob.style.transform = `translate(${(stick.target.x * R).toFixed(1)}px, ${(-stick.target.y * R).toFixed(1)}px)`;
+      const L = lookPad.clientWidth / 2 - 24;
+      const lx = clamp(stick.filtered.yaw / stickCfg.maxSpeed, -1, 1), ly = clamp(stick.filtered.pitch / stickCfg.maxSpeed, -1, 1);
+      lookDot.style.transform = `translate(${(lx * L).toFixed(1)}px, ${(-ly * L).toFixed(1)}px)`;
+    }
+
+    function stickReset() {
+      stick.active = false;
+      stick.target.x = 0; stick.target.y = 0;
+      stick.filtered.yaw = 0; stick.filtered.pitch = 0;
+      stick.lookAcc.x = 0; stick.lookAcc.y = 0;
+      motion.stick.yaw = 0; motion.stick.pitch = 0;
+      if (stick.timer) { clearInterval(stick.timer); stick.timer = null; }
+      stickPad.classList.remove("dragging");
+      activeLed.classList.remove("on");
+      drawStick();
+    }
+
+    function updateStickFromPointer(e) {
+      const r = stickPad.getBoundingClientRect();
+      const R = r.width / 2 - 26;
+      let x = (e.clientX - (r.left + r.width / 2)) / R;
+      let y = -(e.clientY - (r.top + r.height / 2)) / R;
+      const mag = Math.hypot(x, y);
+      if (mag > 1) { x /= mag; y /= mag; }
+      stick.target.x = x; stick.target.y = y;
+      if (!isConnected) notice("Gimbal desconectado — conecte para mover.");
+    }
+
+    stickPad.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      try { stickPad.setPointerCapture(e.pointerId); } catch (_) {}
+      stick.active = true;
+      stickPad.classList.add("dragging");
+      updateStickFromPointer(e);
+      ensureStickLoop();
+    });
+    stickPad.addEventListener("pointermove", (e) => { if (stick.active) { updateStickFromPointer(e); drawStick(); } });
+    const endStick = () => {
+      if (!stick.active) return;
+      stick.active = false;
+      stick.target.x = 0; stick.target.y = 0;
+      stickPad.classList.remove("dragging");
+      ensureStickLoop();
+    };
+    stickPad.addEventListener("pointerup", endStick);
+    stickPad.addEventListener("pointercancel", endStick);
+    stickPad.addEventListener("lostpointercapture", endStick);
+    stickPad.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    const wheelPx = (e) => (e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY);
+    stickPad.addEventListener("wheel", (e) => { e.preventDefault(); setStickSetting("maxSpeed", stickCfg.maxSpeed + (wheelPx(e) < 0 ? 5 : -5)); markFeel(null); }, { passive: false });
+    document.addEventListener("wheel", (e) => { if (stick.look) { e.preventDefault(); setStickSetting("maxSpeed", stickCfg.maxSpeed + (wheelPx(e) < 0 ? 5 : -5)); markFeel(null); } }, { passive: false });
+
+    // ---- Mouse livre (Pointer Lock) ----
+    function toggleMouseLook(force) {
+      const want = force ?? !stick.look;
+      if (want) {
+        if (!lookPad.requestPointerLock) { log("Mouse livre indisponível: o navegador não permite capturar o mouse."); return; }
+        try {
+          const p = lookPad.requestPointerLock();
+          if (p && p.catch) p.catch((err) => log(`Mouse livre: ${err.message || err}`));
+        } catch (err) { log(`Mouse livre: ${err.message || err}`); }
+      } else if (document.pointerLockElement === lookPad) {
+        document.exitPointerLock();
+      }
+    }
+    lookPad.addEventListener("click", () => { if (!stick.look) toggleMouseLook(true); });
+    lookPad.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleMouseLook(); } });
+    document.addEventListener("pointerlockchange", () => {
+      const on = document.pointerLockElement === lookPad;
+      stick.look = on;
+      stick.lookAcc.x = 0; stick.lookAcc.y = 0;
+      lookPad.classList.toggle("looking", on);
+      lookText.innerHTML = on ? "MOUSE CAPTURADO<br><small>Esc para soltar</small>" : "CLIQUE AQUI<br><small>para capturar o mouse</small>";
+      if (on) { ensureStickLoop(); log("Mouse livre ativo: mova o mouse para girar; Esc solta."); announce("Mouse capturado"); lcdMessage("🖱 MOUSE LIVRE"); }
+      else { ensureStickLoop(); announce("Mouse solto"); }
+    });
+    document.addEventListener("pointerlockerror", () => log("Não foi possível capturar o mouse."));
+    document.addEventListener("mousemove", (e) => {
+      if (!stick.look) return;
+      stick.lookAcc.x += e.movementX;
+      stick.lookAcc.y += e.movementY;
+    });
+
+    // ---- Ajustes ----
+    const SENS_WORDS = [[0.05, "Muito baixa"], [0.1, "Baixa"], [0.18, "Média"], [0.3, "Alta"], [9, "Muito alta"]];
+    const stickSliders = {
+      stickMaxSpeed: { key: "maxSpeed", scale: 1,    fmt: (v) => `${v}°/s` },
+      mouseSens:     { key: "sens",     scale: 1,    fmt: (v) => SENS_WORDS.find(([lim]) => v <= lim)[1] },
+      stickDeadzone: { key: "deadzone", scale: 0.01, fmt: (v) => `${v}%` },
+      stickExpo:     { key: "expo",     scale: 0.01, fmt: (v) => `${v}%` },
+      stickSmooth:   { key: "smooth",   scale: 0.01, fmt: (v) => `${v}%` },
+    };
+    function setStickSetting(key, value) {
+      const id = Object.keys(stickSliders).find((k) => stickSliders[k].key === key);
+      const el = $(id), def = stickSliders[id];
+      el.value = clamp(value, parseFloat(el.min), parseFloat(el.max));
+      const v = parseFloat(el.value);
+      stickCfg[key] = v * def.scale;
+      $(id + "Val").textContent = def.fmt(v);
+      el.setAttribute("aria-valuetext", def.fmt(v));
+      if (key === "deadzone") stickPad.style.setProperty("--dz", `${(stickCfg.deadzone * (stickPad.clientWidth / 2 - 26)).toFixed(0)}px`);
+    }
+    Object.entries(stickSliders).forEach(([id, def]) => {
+      $(id).addEventListener("input", (e) => { setStickSetting(def.key, parseFloat(e.target.value)); markFeel(null); });
+      setStickSetting(def.key, parseFloat($(id).value));
+    });
+
+    const FEELS = {
+      suave:  { maxSpeed: 35,  sens: 0.06, deadzone: 12, expo: 60, smooth: 70 },
+      normal: { maxSpeed: 60,  sens: 0.12, deadzone: 10, expo: 40, smooth: 50 },
+      agil:   { maxSpeed: 100, sens: 0.24, deadzone: 6,  expo: 15, smooth: 20 },
+    };
+    function markFeel(name) {
+      feelBtns.forEach((b) => { const on = b.dataset.feel === name; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); });
+    }
+    function applyFeel(name) {
+      Object.entries(FEELS[name]).forEach(([key, v]) => setStickSetting(key, v));
+      markFeel(name);
+    }
+    feelBtns.forEach((b) => b.addEventListener("click", () => applyFeel(b.dataset.feel)));
+
+    const bindFlag = (btn, key) => btn.addEventListener("click", () => { stickCfg[key] = !stickCfg[key]; setSwitch(btn, stickCfg[key], "SIM", "NÃO"); });
+    bindFlag(invertXBtn, "invertX");
+    bindFlag(invertYBtn, "invertY");
+    bindFlag(oneAxisBtn, "oneAxis");
+
+    // =====================================================================
+    // Tela 3 — Estabilização
+    // =====================================================================
+    const FOLLOW_HELP = {
+      2: "Suave: acompanha devagar — ideal para caminhar e filmar pessoas.",
+      3: "Rápido: acompanha de perto — para esportes e movimentos rápidos (modo Sport). É a opção mais rápida do Osmo Mobile 2.",
+      1: "Tudo (FPV): não é mais rápido — segue também a inclinação da mão. Ainda em teste neste gimbal.",
+    };
+
+    function expectedPushMode() {
+      if (!stab.follow) return 0;
+      return stab.followMode === DUML.MODE.FPV ? 1 : 2;
+    }
+
+    function renderStab() {
+      setSwitch(followSwitch, stab.follow, "LIGADO", "DESLIGADO");
+      followSwitch.setAttribute("aria-label", stab.follow ? "Seguir o movimento da mão: ligado" : "Seguir o movimento da mão: desligado, posição fixa");
+      followBtns.forEach((b) => {
+        const on = Number(b.dataset.follow) === stab.followMode;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-checked", String(on));
+      });
+      followSeg.classList.toggle("dim", !stab.follow);
+      followHelp.textContent = stab.follow ? FOLLOW_HELP[stab.followMode] : "Com a posição fixa, escolher uma opção volta a seguir a mão.";
+      quickFollowBtn.textContent = stab.follow ? "📌 Fixar posição" : "🖐 Seguir a mão";
+      setSwitch(motorSwitch, stab.motorsOn, "LIGADOS", "DESLIGADOS");
+      motorSwitch.setAttribute("aria-label", stab.motorsOn ? "Motores ligados" : "Motores desligados");
+
+      const label = modeChip.querySelector("span");
+      modeChip.classList.remove("ok", "warn");
+      if (!isConnected) label.textContent = "Gimbal desconectado";
+      else if (gimbal.pushMode === null) label.textContent = "Aguardando o gimbal informar o modo…";
+      else if (gimbal.pushMode === 3) { label.textContent = "O gimbal está calibrando"; modeChip.classList.add("warn"); }
+      else if (gimbal.pushMode === expectedPushMode()) { label.textContent = `Gimbal confirma: ${PUSH_MODE[gimbal.pushMode]}`; modeChip.classList.add("ok"); }
+      else { label.textContent = `Gimbal informa: ${PUSH_MODE[gimbal.pushMode]}`; modeChip.classList.add("warn"); }
+      renderLcd();
+    }
+
+    function sendMode(mode) {
+      stab.lastModeSentAt = Date.now();
+      return sendCommand(DUML.CMDSET_GIMBAL, DUML.CMD.RESET_AND_SET_MODE, [mode, DUML.MODE_CMD.NONE], { label: `modo 0x${hex2(mode)}`, quiet: true });
+    }
+
+    function setFollow(on) {
+      if (!isConnected) { notice("Gimbal desconectado — conecte para mudar a estabilização."); return; }
+      stab.follow = on;
+      sendMode(on ? stab.followMode : DUML.MODE.LOCK);
+      renderStab();
+      const text = on ? "Seguindo a mão" : "Posição fixa (Lock)";
+      log(text + ".");
+      announce(text);
+      lcdMessage(on ? "🖐 SEGUINDO A MÃO" : "📌 POSIÇÃO FIXA");
+    }
+    function setFollowMode(mode) {
+      if (!isConnected) return;
+      stab.followMode = mode;
+      stab.follow = true;
+      sendMode(mode);
+      renderStab();
+      const name = { 1: "Tudo (FPV)", 2: "Suave", 3: "Rápido" }[mode];
+      log(`Seguir a mão: ${name}.`);
+      announce(`Seguir a mão: ${name}`);
+      lcdMessage(`🖐 SEGUE ${FOLLOW_SHORT[mode]}`);
+    }
+    followSwitch.addEventListener("click", () => setFollow(!stab.follow));
+    quickFollowBtn.addEventListener("click", () => setFollow(!stab.follow));
+    followBtns.forEach((b) => b.addEventListener("click", () => setFollowMode(Number(b.dataset.follow))));
+
+    // O gimbal é a fonte da verdade: se o modo mudar lá (ex.: botão M), a tela acompanha
+    function syncFromPushMode() {
+      const m = gimbal.pushMode;
+      if (m !== null && m !== 3 && Date.now() - stab.lastModeSentAt > 1500) {
+        if (m === 0 && stab.follow) { stab.follow = false; log("O gimbal mudou para posição fixa."); }
+        else if (m !== 0 && !stab.follow) { stab.follow = true; log("O gimbal voltou a seguir a mão."); }
+        if (m === 1) stab.followMode = DUML.MODE.FPV;
+        else if (m === 2 && stab.followMode === DUML.MODE.FPV) stab.followMode = DUML.MODE.FOLLOW;
+      }
+      renderStab();
+    }
+    setInterval(() => { if (isConnected && gimbal.pushMode !== null && gimbal.pushMode !== expectedPushMode()) syncFromPushMode(); }, 1000);
+
+    function setMotors(on) {
+      if (!isConnected) return;
+      if (!on) {
+        stopAll("motores desligados", { quiet: true });
+        const v = DUML.MOTORS_OFF;
+        sendCommand(DUML.CMDSET_GIMBAL, DUML.CMD.SUSPEND_RESUME, [v & 0xff, v >> 8], { ack: false, label: "desligar motores", quiet: true });
+        lcdMessage("MOTORES DESLIGADOS", 2000);
+        log("Motores desligados (o gimbal continua ligado e conectado).");
+      } else {
+        const v = DUML.MOTORS_ON;
+        sendCommand(DUML.CMDSET_GIMBAL, DUML.CMD.SUSPEND_RESUME, [v & 0xff, v >> 8], { ack: false, label: "ligar motores", quiet: true });
+        setTimeout(() => sendMode(stab.follow ? stab.followMode : DUML.MODE.LOCK), 400);
+        motorHelp.hidden = false;
+        lcdMessage("LIGANDO MOTORES", 2000);
+        log("Tentando religar os motores.");
+      }
+      stab.motorsOn = on;
+      renderStab();
+      announce(on ? "Ligando motores" : "Motores desligados");
+    }
+    motorSwitch.addEventListener("click", () => setMotors(!stab.motorsOn));
+
+    // =====================================================================
+    // Botões físicos do gimbal → LED "BTN" (alguém mexendo no gimbal)
+    // =====================================================================
+    const hw = { baselineUntil: 0, seenTypes: new Set(), noisyBytes: new Set(), lastPush: null, prevClick: 0, prevStick: 0 };
+    function hwStartBaseline() {
+      hw.baselineUntil = Date.now() + 2500;   // 2,5 s aprendendo o que o gimbal envia sozinho
+      hw.seenTypes.clear(); hw.noisyBytes.clear(); hw.lastPush = null; hw.prevClick = 0; hw.prevStick = 0;
+    }
+    let btnLedTimer = null;
+    function gimbalTouched(what) {
+      btnLed.classList.add("on");
+      clearTimeout(btnLedTimer);
+      btnLedTimer = setTimeout(() => btnLed.classList.remove("on"), 700);
+      notice(`Mexeram no gimbal: ${what}.`, 1200);
+      lcdMessage(`👆 ${what.toUpperCase()}`, 900);
+    }
+
+    function hwFromPush(p) {
+      const click = p.length > 11 ? p[11] : 0;
+      const rising = click & ~hw.prevClick;
+      hw.prevClick = click;
+      if (rising & 0x80) gimbalTouched("botão M");
+      if (rising & 0x20) gimbalTouched("botão M 2×");
+      if (rising & 0x40) gimbalTouched("botão M 3×");
+      const stickBits = p.length > 9 ? (p[8] & 0x0f) : 0;
+      if (stickBits && !hw.prevStick) gimbalTouched("joystick");
+      hw.prevStick = stickBits;
+      if (hw.lastPush && hw.lastPush.length === p.length) {
+        const learning = Date.now() < hw.baselineUntil;
+        for (let i = 12; i < p.length; i++) {
+          if (p[i] === hw.lastPush[i]) continue;
+          if (learning) hw.noisyBytes.add(i);
+          else if (!hw.noisyBytes.has(i)) { gimbalTouched("botão"); break; }
+        }
+      }
+      hw.lastPush = p.slice();
+    }
+
+    function hwOtherFrame(key, payload) {
+      if (Date.now() < hw.baselineUntil) { hw.seenTypes.add(key); return; }
+      if (hw.seenTypes.has(key)) return;
+      gimbalTouched("botão");
+      if (rxLogChk.checked) log(`Sinal do gimbal ${key}: ${hex(payload) || "(vazio)"}`);
+    }
+
+    // =====================================================================
+    // Teclado global
+    // =====================================================================
+    function isTypingTarget(el) {
+      if (!el || !el.tagName) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const key = (e.key || "").toLowerCase();
+      if (key === "escape") {                       // Esc = mesmo que o botão CENTRO: para o que estiver rodando e centraliza
+        if (!e.repeat) { flashButton(btnCenter); stopAll("Esc", { quiet: true }); centerGimbal(); }
+        return;
+      }
+      if (e.defaultPrevented || isTypingTarget(e.target)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const dir = KEY_TO_DIR.get(key);
+      if (dir) {
+        e.preventDefault();
+        if (!e.repeat) press(dir, `key:${key}`);
+        return;
+      }
+      if (e.repeat) return;
+      if (key === "c") { e.preventDefault(); flashButton(btnCenter); stopAll("C", { quiet: true }); centerGimbal(); }
+      else if (key === "p") { e.preventDefault(); toggleLock("pan"); }
+      else if (key === "t") { e.preventDefault(); toggleLock("tilt"); }
+      else if (key === "m") { e.preventDefault(); setFollow(!stab.follow); }
+      else if (key === "l") { e.preventDefault(); if (stick.look) toggleMouseLook(false); else { setView("look"); toggleMouseLook(true); } }
+      else if (key === "+" || key === "=") { e.preventDefault(); setSpeed(parseFloat(speedSlider.value) + 5); }
+      else if (key === "-" || key === "_") { e.preventDefault(); setSpeed(parseFloat(speedSlider.value) - 5); }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const key = (e.key || "").toLowerCase();
+      const dir = KEY_TO_DIR.get(key);
+      if (dir) release(dir, `key:${key}`);
+    });
+
+    window.addEventListener("blur", () => { releaseAll(); if (stick.active) endStick(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) { releaseAll(); if (stick.active) endStick(); } });
+
+    // ===== Inicialização =====
+    connectBtn.addEventListener("click", () => connect(false));
+    otherDeviceBtn.addEventListener("click", () => connect(true));
+    disconnectBtn.addEventListener("click", disconnect);
+    clearLogBtn.addEventListener("click", () => { logEl.textContent = ""; });
+
+    viewHelp.textContent = VIEW_INFO.stick.help;
+    document.querySelectorAll("[data-views]").forEach((el) => { el.hidden = !el.dataset.views.split(" ").includes("stick"); });
+    setStatus(false, "Desconectado");
+    setSpeed(parseFloat(speedSlider.value));
+    renderCenterBtn();
+    renderLcdAttitude();
+    drawStick();
+    if (!navigator.bluetooth) log("Este navegador não tem Web Bluetooth. Use Chrome ou Edge (Android, Windows, macOS ou Linux).");
+    else if (!window.isSecureContext) log("Abra a página por HTTPS (ex.: GitHub Pages) — o Bluetooth não funciona fora dela.");
+    log("Pronto. Conecte o gimbal para começar.");
+  </script>
+</body>
+</html>
